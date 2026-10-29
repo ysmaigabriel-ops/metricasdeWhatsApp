@@ -2,47 +2,231 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Panel de estadísticas</title>
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      font-family: Arial, sans-serif;
-      background: #f1f5f9;
-      color: #123b59;
-    }
-    .panel {
-      background: white;
-      padding: 32px;
-      margin: 20px;
-      border-radius: 16px;
-      text-align: center;
-      max-width: 420px;
-      box-shadow: 0 8px 24px #0001;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Panel de estadísticas</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #f0f4f8;
+  color: #14334e;
+  font-family: Arial, sans-serif;
+}
+main {
+  max-width: 1100px;
+  margin: 30px auto;
+  padding: 16px;
+}
+header {
+  background: linear-gradient(110deg,#123653,#17627a);
+  color: white;
+  border-radius: 16px;
+  padding: 28px;
+}
+header small {
+  letter-spacing: 2px;
+  font-weight: bold;
+}
+h1 { margin: 12px 0; font-size: 28px; }
+h2 { font-size: 20px; margin-top: 30px; }
+.subtitulo { opacity: .85; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 15px;
+  margin-top: 18px;
+}
+.card {
+  background: white;
+  padding: 22px;
+  border-radius: 13px;
+  box-shadow: 0 4px 15px #1236530b;
+}
+.card small {
+  color: #63778a;
+  font-size: 13px;
+}
+.valor {
+  font-size: 30px;
+  font-weight: bold;
+  margin-top: 10px;
+}
+.campana {
+  background: white;
+  border-radius: 13px;
+  padding: 22px;
+  margin: 14px 0;
+}
+.detalles {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 12px;
+  margin-top: 15px;
+}
+.detalles div {
+  background: #f0f4f8;
+  padding: 13px;
+  border-radius: 8px;
+}
+.detalles strong {
+  display: block;
+  font-size: 22px;
+  margin-top: 5px;
+}
+.estado { margin-top: 15px; }
+.error {
+  background: #fff0f0;
+  color: #a02020;
+  padding: 15px;
+  border-radius: 8px;
+}
+footer {
+  text-align: center;
+  color: #718397;
+  font-size: 12px;
+  margin: 35px 0;
+}
+@media(max-width:650px) {
+  .grid { grid-template-columns: repeat(2,1fr); }
+  .detalles { grid-template-columns: repeat(2,1fr); }
+  h1 { font-size: 23px; }
+  .valor { font-size: 25px; }
+}
+</style>
 </head>
 <body>
-  <div class="panel">
-    <h1>Panel de estadísticas</h1>
-    <p>Bienvenido a tu centro de resultados.</p>
-    <button onclick="abrirDashboard()"
-  style="background:#123b59;color:white;border:0;
-  padding:15px 25px;border-radius:8px;
-  font-size:16px;cursor:pointer;">
-  📊 Abrir mi dashboard
-</button>
+<main>
+<header>
+  <small>PANEL DE RESULTADOS</small>
+  <h1 id="empresa">Estadísticas de campaña</h1>
+  <div class="subtitulo">Resultados actualizados de tus campañas</div>
+  <div class="estado" id="estado">Cargando estadísticas...</div>
+</header>
+
+<section id="contenido" hidden>
+  <h2>Resumen general</h2>
+  <div class="grid" id="totales"></div>
+  <h2>Detalle por campaña</h2>
+  <div id="campanas"></div>
+</section>
+
+<footer>
+  Información actualizada automáticamente desde SendFlow.
+</footer>
+</main>
 
 <script>
-function abrirDashboard() {
-  const url = "https://script.google.com/macros/s/AKfycbw_RqE6xm0OoUVjc_ctA3eSNEKm4a03HOjLxgq4OGrGOPWqnQgPTem12OvqpPXH_GZKTg/exec";
-  window.open(url, "_blank", "noopener,noreferrer");
+const API =
+  "https://metricas-clientes-api.ysmaigabriel.workers.dev/api/metricas";
+
+const formato = n =>
+  n === null || n === undefined
+    ? "—"
+    : Number(n).toLocaleString("es-MX");
+
+function elemento(etiqueta, valor) {
+  const tarjeta = document.createElement("div");
+  tarjeta.className = "card";
+
+  const titulo = document.createElement("small");
+  titulo.textContent = etiqueta;
+
+  const numero = document.createElement("div");
+  numero.className = "valor";
+  numero.textContent = formato(valor);
+
+  tarjeta.append(titulo, numero);
+  return tarjeta;
 }
+
+async function cargar() {
+  const estado = document.getElementById("estado");
+  const token = new URLSearchParams(location.search).get("token");
+
+  if (!token || !/^[a-f0-9]{64}$/i.test(token)) {
+    estado.className = "estado error";
+    estado.textContent = "Enlace inválido.";
+    return;
+  }
+
+  try {
+    const respuesta = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+      cache: "no-store"
+    });
+
+    const resultado = await respuesta.json();
+
+    if (!respuesta.ok || !resultado.ok) {
+      throw new Error("No se pudo autorizar este enlace.");
+    }
+
+    const datos = resultado.datos;
+    document.getElementById("empresa").textContent = datos.empresa;
+
+    const totales = document.getElementById("totales");
+    const campos = [
+      ["Grupos", "grupos"],
+      ["Participantes", "participantes"],
+      ["Entradas", "entradas"],
+      ["Salidas", "salidas"],
+      ["Clics", "clics"],
+      ["Balance neto", "balance"]
+    ];
+
+    campos.forEach(([nombre, clave]) => {
+      totales.appendChild(elemento(nombre, datos.totales[clave]));
+    });
+
+    const contenedor = document.getElementById("campanas");
+
+    datos.campanas.forEach(c => {
+      const bloque = document.createElement("article");
+      bloque.className = "campana";
+
+      const titulo = document.createElement("h3");
+      titulo.textContent = c.nombre;
+      bloque.appendChild(titulo);
+
+      const detalles = document.createElement("div");
+      detalles.className = "detalles";
+
+      campos.forEach(([nombre, clave]) => {
+        const celda = document.createElement("div");
+        const etiqueta = document.createElement("small");
+        etiqueta.textContent = nombre;
+
+        const numero = document.createElement("strong");
+        numero.textContent = formato(c[clave]);
+
+        celda.append(etiqueta, numero);
+        detalles.appendChild(celda);
+      });
+
+      bloque.appendChild(detalles);
+
+      const fecha = document.createElement("small");
+      fecha.textContent = "Actualizado: " + (c.actualizado || "—");
+      bloque.appendChild(fecha);
+
+      contenedor.appendChild(bloque);
+    });
+
+    estado.textContent = "Datos cargados correctamente";
+    document.getElementById("contenido").hidden = false;
+
+  } catch (error) {
+    estado.className = "estado error";
+    estado.textContent =
+      "No se pudieron cargar las estadísticas. Verifica tu enlace.";
+  }
+}
+
+cargar();
 </script>
-  </div>
 </body>
 </html>
